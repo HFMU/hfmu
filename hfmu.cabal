@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 -- The name of the package.
-name:                HFMU
+name:                hfmu
 
 -- The package version.  See the Haskell package versioning policy (PVP)
 -- for standards guiding when and how versions should be incremented.
@@ -47,12 +47,13 @@ cabal-version:       >=2.0
 
 foreign-library HFMU
   type: native-shared
-  -- lib-version-info: 1:0:0 -- not supported on OSX
+  -- lib-version-info: 1:0:0
   if os(Windows)
      options: standalone
      mod-def-file: HFMU.def
   -- Modules included in this library, other than Main.
-   other-modules: HFMU
+
+  other-modules: HFMU
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

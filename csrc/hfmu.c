@@ -15,7 +15,7 @@ static void loaded(void)
 extern int foo(int a);
 int cfoo(int a){
   printf("cfoo");
-  return 1;//  return (foo(a));
+  return (foo(a));
 }
 
 static void unloaded(void) __attribute__((destructor));
