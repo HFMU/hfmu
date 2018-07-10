@@ -4,7 +4,6 @@
 #include "HsFFI.h"
 #include <stdio.h>
 
-
 static void loaded(void) __attribute__((constructor));
 static void loaded(void)
 {
@@ -15,7 +14,8 @@ static void loaded(void)
 }
 extern int foo(int a);
 int cfoo(int a){
-  return (foo(a));
+  printf("cfoo");
+  return 1;//  return (foo(a));
 }
 
 static void unloaded(void) __attribute__((destructor));
