@@ -10,98 +10,85 @@ import Data.IORef
 import System.IO.Unsafe
 import Control.Monad
 
-newtype Ctxt = Ctxt { lst :: [Int] } deriving Show
+-- FMI Ports state
+newtype PortState = PortState Int
 
--- https://www.reddit.com/r/haskell/comments/8693a3/usefulness_of_duplicaterecordfields/
+-- User defined state
+newtype UState = UState Int 
 
-data DoStepReturn = DoStepReturn {context :: Ctxt,
-                                status :: Fmi2Status}
+-- User Accesible State
+data UAccState = UAccState {pState :: PortState, uState :: UState}
 
-data DoStepData = DoStepData {context :: Ctxt,
-                             stepSize :: Double}
+-- State of the entire FMU
+data HState = HState {fmuTRemain :: FmuTRemain,
+                      fmuSS :: FmuSS,
+                      uAccState :: UAccState}
 
+-- Remaining time of step
+newtype FmuTRemain = FmuTRemain Double 
 
-foreign export ccall foo :: Int -> IO Int
-foo :: Int -> IO Int
-foo n = do
-  putStrLn "HS: Foo invoked"
-  return 5
+-- Step size of FMU
+newtype FmuSS = FmuSS Double
 
-foreign export ccall instantiateLEG :: CString -> IO Bool
-instantiateLEG :: CString -> IO Bool
-instantiateLEG x = do
-  putStrLn "HS: instantiateLEG invoked"
-  name <- peekCString x
-  putStrLn $ mappend "HS: name parameter " name
-  return True
+-- Communication Step Size (size of the step the FMU should progress)
+newtype FmiSS = FmiSS Double
 
-foreign export ccall instantiate :: CString -> IO (StablePtr (IORef Ctxt))
-instantiate :: CString -> IO (StablePtr (IORef Ctxt))
-instantiate x = do
-  putStrLn "HS: instantiate invoked"
-  name <- peekCString x
-  putStrLn $ mappend "HS: name parameter " name
-  ref <- newIORef (Ctxt [1])
-  ptr <- newStablePtr ref
-  pure ptr
+-- Current time of master
+newtype FmiT = FmiT Double
 
-foreign export ccall printEnv :: StablePtr (IORef Ctxt) -> IO Int
-printEnv :: StablePtr (IORef Ctxt) -> IO Int
-printEnv x = do
-  putStrLn "HS: printEnv invoked"
-  (ref :: IORef Ctxt) <- deRefStablePtr x
-  (d :: Ctxt) <- readIORef ref
-  putStrLn $ mappend "HS: " (show d)
-  return 2
+data Fmi2Status = Fmi2OK | Fmi2Warning | Fmi2Discard | Fmi2Error | Fmi2Fatal deriving Enum
 
-foreign export ccall updateEnv :: StablePtr (IORef Ctxt) -> IO Bool
-updateEnv :: StablePtr (IORef Ctxt) -> IO Bool
-updateEnv x = do
-  putStrLn "HS updateEnv: invoked"
-  (ref :: IORef Ctxt) <- deRefStablePtr x
-  modifyIORef' ref updCtxt
-  ctxt <- readIORef ref
-  putStrLn $ mappend "HS updateEnv: IORef " (show ctxt)
-  return True
-  where
-    updCtxt :: Ctxt -> Ctxt
-    updCtxt ctxt = let x = lst ctxt in
-      Ctxt (x ++ [2])
+foreign export ccall fmi2DoStep :: StablePtr (IORef HState) -> FmiT -> FmiSS -> Bool -> IO Int
+fmi2DoStep :: StablePtr (IORef HState) -> FmiT -> FmiSS -> Bool -> IO Int
+fmi2DoStep stPtr fmiMasterT fmiSS delPrevState =
+  do
+    state <- getState stPtr
+    doStepFunction <- getDoStepFunction
+    case doStepFunction of
+      Nothing -> pure $ fromEnum Fmi2Fatal
+      Just doStepF -> do
+        pSRes <- performStep doStepF (uAccState (state :: HState)) fmiSS (fmuSS state) (fmuTRemain state)
+        case pSRes of
+          Left fmi2Status -> pure $ fromEnum fmi2Status
+          Right pStepResult -> writeState stPtr (updateHStateFromPStepResult state pStepResult) >> pure (fromEnum Fmi2OK)
 
-newtype StepSize = StepSize Double;
-
-data Fmi2Status = Fmi2OK | Fmi2Warning | Fmi2Discard | Fmi2Error | Fmi2Fatal
-fmi2StatusToInt :: Fmi2Status -> Int
-fmi2StatusToInt Fmi2OK = 0;
-fmi2StatusToInt Fmi2Warning = 1;
-fmi2StatusToInt Fmi2Discard = 2;
-fmi2StatusToInt Fmi2Error = 3;
-fmi2StatusToInt Fmi2Fatal = 4;
+updateHStateFromPStepResult :: HState -> PStepResult -> HState
+updateHStateFromPStepResult state pStepResult = HState {fmuTRemain = tRemain pStepResult, fmuSS=fmuSS state, uAccState = uAccState (pStepResult :: PStepResult)}
 
 
-foreign export ccall fmi2DoStep :: StablePtr (IORef Ctxt) -> Double -> Double -> Bool -> IO Int
-fmi2DoStep :: StablePtr (IORef Ctxt) -> Double -> Double -> Bool -> IO Int
-fmi2DoStep state t h delPrevState = do
-  ctxt <- getCtxt state
-  (uDoStep :: Maybe (DoStepData -> IO DoStepReturn)) <- readIORef stDoStepFunction
-  case uDoStep of
-    Nothing -> pure $ fmi2StatusToInt Fmi2Fatal
-    Just uDoStep' ->
-      do
-        (dsr :: DoStepReturn) <- uDoStep' DoStepData {context = ctxt, stepSize = h}
-        writeCtxt state (context (dsr :: DoStepReturn))
-        pure $ (fmi2StatusToInt . status) dsr
+-- Result from performStep function
+data PStepResult = PStepResult {tRemain :: FmuTRemain, uAccState :: UAccState}
 
-getCtxt :: StablePtr (IORef Ctxt) -> IO Ctxt
-getCtxt = deRefStablePtr >=> readIORef
+-- Performs X dosteps.
+-- For example - if FmuTRemain is 2, FmuSS is 3, and FmiSS is 10 then it performs
+-- 1 step and then FmiSS is 8 and FmuTRemain is 3
+-- 1 step and then FmiSS is 5 and FMUTRemain is 3
+-- 1 step and then FmiSS is 2 and FMUTRemain is 3
+-- 0 step and then FMUTRemain is 1
+-- In total: 3 steps
+performStep :: (UAccState -> IO (Either Fmi2Status UAccState)) -> UAccState -> FmiSS -> FmuSS -> FmuTRemain -> IO (Either Fmi2Status PStepResult)
+performStep userDoStep state (FmiSS fmiSS) fmuSS'@(FmuSS fmuSS) (FmuTRemain fmuTRemain) =
+  if fmiSS >= fmuTRemain
+  then
+    do
+      r <- userDoStep state
+      case r of
+        (Left err) -> pure $ Left err
+        (Right uAccState) -> performStep userDoStep uAccState (FmiSS (fmiSS - fmuTRemain)) fmuSS' (FmuTRemain fmuSS)
+  else pure $ Right (PStepResult {tRemain = FmuTRemain (fmuTRemain - fmiSS), uAccState = state})
 
-writeCtxt :: StablePtr(IORef Ctxt) -> Ctxt -> IO ()
-writeCtxt ptr ctxt = deRefStablePtr ptr >>= \ioref -> writeIORef ioref ctxt
+getState :: StablePtr (IORef a) -> IO a
+getState = deRefStablePtr >=> readIORef
 
-stDoStepFunction :: IORef (Maybe (DoStepData -> IO DoStepReturn))
-stDoStepFunction = unsafePerformIO (newIORef Nothing)
+writeState :: StablePtr(IORef a) -> a -> IO ()
+writeState ptr state = deRefStablePtr ptr >>= \ioref -> writeIORef ioref state
 
-storeDoStepFunction :: (DoStepData -> IO DoStepReturn) -> IO ()
-storeDoStepFunction f = do
-  writeIORef stDoStepFunction $ Just f
+{-# NOINLINE stDoStepFunction #-}
+stDoStepFunction :: IORef (Maybe (UAccState -> IO (Either Fmi2Status UAccState)))
+stDoStepFunction = unsafePerformIO $ newIORef Nothing
 
+storeDoStepFunction :: (UAccState -> IO (Either Fmi2Status UAccState)) -> IO ()
+storeDoStepFunction  = ((writeIORef stDoStepFunction) . Just)
+
+getDoStepFunction :: IO (Maybe (UAccState -> IO (Either Fmi2Status UAccState)))
+getDoStepFunction = readIORef stDoStepFunction
