@@ -10,19 +10,12 @@ static void loaded(void)
   static char *argv[] = { "libHFMU.so", 0 }, **argv_ = argv;
   static int argc = 1;
   hs_init(&argc, &argv_);
-  printf("Initialised hs");
-}
-extern int foo(int a);
-int cfoo(int a){
-  printf("cfoo");
-  return (foo(a));
 }
 
 static void unloaded(void) __attribute__((destructor));
 static void unloaded(void)
 {
   hs_exit();
-  printf("Terminated hs");
 }
 
 #endif
