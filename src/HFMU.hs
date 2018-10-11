@@ -4,56 +4,43 @@
 
 module HFMU where
 
-import Foreign.C.String
+import Foreign.C.Types (CDouble (CDouble), CInt (CInt), CSize (CSize))
+import Foreign (Ptr)
 import Foreign.StablePtr
 import Data.IORef
 import System.IO.Unsafe
 import Control.Monad
+import StateTypes
 
--- FMI Ports state
-newtype PortState = PortState Int
+{-
+-}
+foreign export ccall fmi2DoStep :: CString -> CInt -> CString -> CString -> 
 
--- User defined state
-newtype UState = UState Int 
-
--- User Accesible State
-data UAccState = UAccState {pState :: PortState, uState :: UState}
-
--- State of the entire FMU
-data HState = HState {fmuTRemain :: FmuTRemain,
-                      fmuSS :: FmuSS,
-                      uAccState :: UAccState}
-
--- Remaining time of step
-newtype FmuTRemain = FmuTRemain Double 
-
--- Step size of FMU
-newtype FmuSS = FmuSS Double
-
--- Communication Step Size (size of the step the FMU should progress)
-newtype FmiSS = FmiSS Double
-
--- Current time of master
-newtype FmiT = FmiT Double
-
-data Fmi2Status = Fmi2OK | Fmi2Warning | Fmi2Discard | Fmi2Error | Fmi2Fatal deriving Enum
-
-foreign export ccall fmi2DoStep :: StablePtr (IORef HState) -> FmiT -> FmiSS -> Bool -> IO Int
-fmi2DoStep :: StablePtr (IORef HState) -> FmiT -> FmiSS -> Bool -> IO Int
-fmi2DoStep stPtr fmiMasterT fmiSS delPrevState =
+{-
+stPtr is state pointer
+cfmiMasterT is the current time of the master
+fmiSS is the step size
+delPrevState is whether to delete the previous state or not
+-}
+foreign export ccall fmi2DoStep :: StablePtr (IORef HState) -> CDouble -> CDouble -> Bool -> IO Int
+fmi2DoStep :: StablePtr (IORef HState) -> CDouble -> CDouble -> Bool -> IO Int
+fmi2DoStep stPtr cfmiMasterT (CDouble fmiSS) delPrevState =
   do
     state <- getState stPtr
     doStepFunction <- getDoStepFunction
     case doStepFunction of
       Nothing -> pure $ fromEnum Fmi2Fatal
       Just doStepF -> do
-        pSRes <- performStep doStepF (uAccState (state :: HState)) fmiSS (fmuSS state) (fmuTRemain state)
+        pSRes <- performStep doStepF (uAccState (state :: HState)) (FmiSS fmiSS) (fmuSS state) (fmuTRemain state)
         case pSRes of
           Left fmi2Status -> pure $ fromEnum fmi2Status
-          Right pStepResult -> writeState stPtr (updateHStateFromPStepResult state pStepResult) >> pure (fromEnum Fmi2OK)
+          Right pStepResult -> let newState = updateHStateFromPStepResult state pStepResult in
+            writeState stPtr newState >> pure (fromEnum Fmi2OK)
 
 updateHStateFromPStepResult :: HState -> PStepResult -> HState
-updateHStateFromPStepResult state pStepResult = HState {fmuTRemain = tRemain pStepResult, fmuSS=fmuSS state, uAccState = uAccState (pStepResult :: PStepResult)}
+updateHStateFromPStepResult state pStepResult = HState {fmuTRemain = tRemain pStepResult,
+                                                        fmuSS=fmuSS state,
+                                                        uAccState = uAccState (pStepResult :: PStepResult)}
 
 
 -- Result from performStep function
@@ -77,18 +64,25 @@ performStep userDoStep state (FmiSS fmiSS) fmuSS'@(FmuSS fmuSS) (FmuTRemain fmuT
         (Right uAccState) -> performStep userDoStep uAccState (FmiSS (fmiSS - fmuTRemain)) fmuSS' (FmuTRemain fmuSS)
   else pure $ Right (PStepResult {tRemain = FmuTRemain (fmuTRemain - fmiSS), uAccState = state})
 
+-- Retrieves state
 getState :: StablePtr (IORef a) -> IO a
 getState = deRefStablePtr >=> readIORef
 
-writeState :: StablePtr(IORef a) -> a -> IO ()
+-- Stores state
+writeState :: StablePtr (IORef a) -> a -> IO ()
 writeState ptr state = deRefStablePtr ptr >>= \ioref -> writeIORef ioref state
 
+-- Functions related to the user defined doStep function
 {-# NOINLINE stDoStepFunction #-}
 stDoStepFunction :: IORef (Maybe (UAccState -> IO (Either Fmi2Status UAccState)))
 stDoStepFunction = unsafePerformIO $ newIORef Nothing
 
 storeDoStepFunction :: (UAccState -> IO (Either Fmi2Status UAccState)) -> IO ()
-storeDoStepFunction  = ((writeIORef stDoStepFunction) . Just)
+storeDoStepFunction = ((writeIORef stDoStepFunction) . Just)
 
 getDoStepFunction :: IO (Maybe (UAccState -> IO (Either Fmi2Status UAccState)))
 getDoStepFunction = readIORef stDoStepFunction
+
+foreign export ccall fmi2GetReal :: StablePtr (IORef HState) -> Ptr CInt -> CSize -> Ptr CDouble -> IO CInt
+fmi2GetReal :: StablePtr (IORef HState) -> Ptr CInt -> CSize -> Ptr CDouble -> IO CInt
+fmi2GetReal = undefined

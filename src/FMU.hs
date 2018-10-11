@@ -3,8 +3,9 @@
 module FMU where
 
 import HFMU
-import UPorts
 import System.Environment
+import Vars
+import UPorts
 
 foreign export ccall initDoStepFunction :: IO ()
 initDoStepFunction :: IO ()
@@ -16,3 +17,6 @@ doStep x =
       ctxt' = UPorts.setOutputValve ctxt (not $ UPorts.getOutputValve ctxt)
   in
     pure DoStepReturn {context = ctxt', status=OK}
+
+fmuPorts :: Ports
+fmuPorts = Ports {inputPorts = [inputLevel], outputPorts=[outputValve],parameterPorts=[]}

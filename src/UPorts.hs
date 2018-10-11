@@ -1,20 +1,12 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 module UPorts where
-import HFMU
+import Vars
 
-initialInt :: Int -> Ctxt -> Ctxt
-initialInt = undefined
 
--- start=xx;
-setOutputValve :: Ctxt -> Bool -> Ctxt
-setOutputValve = undefined
+outputValve :: OutputPort
+outputValve = OutputPort {port = Port {name = "valve", valueReference = 1, fmi2Type = Boolean, value = Just $ BooleanVal False}, dependsOn=[]}
 
-getOutputValve :: Ctxt -> Bool
-getOutputValve = undefined
+inputLevel :: InputPort
+inputLevel = InputPort {port = Port {name = "level", valueReference = 2, fmi2Type = Real, value = Just $ RealVal 2}, outputUpdates=Nothing}
 
--- start=xx; name=xx;
-getInputLevel :: Ctxt -> Int
-getInputLevel = undefined
 
--- start=xx; name=xx;
-getParameterMinLevel :: Ctxt -> Int
-getParameterMinLevel = undefined
