@@ -12,7 +12,6 @@ https://github.com/ocharles/plhaskell/blob/master/smallmain.c
 ## Development Information
 ### HFMIInterface 
 The HFMIInterface represents different types needed to implement the C-functions of FMI.
-### HSC 
-The HSC project uses hsc2hs to generate some of the types specified in HSFMIInterface.
+Some of these types are generated using hsc2hs - see the hsc repository.
 
 
