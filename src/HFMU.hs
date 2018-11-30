@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module HFMU where
@@ -9,6 +10,7 @@ import Foreign (Ptr, nullPtr, FunPtr, StablePtr)
 import Foreign
 import Data.IORef
 import Control.Monad
+import GHC.Generics
 
 
 foreign import ccall "dynamic" mkFunPtrLogger :: CallbackLogger -> CompEnvT -> CString -> FMIStatus -> CString -> CString -> IO ()
@@ -59,8 +61,8 @@ fmi2SetInteger comp varRefs size varVals = do
   varRefs' <- peekArray (fromIntegral size) varRefs
   varVals' <- peekArray (fromIntegral size) varVals
   let refVal = zip varRefs' varVals' in
-    case hd refVal of
-      (1,1) -> _
+    case head refVal of
+      (1,1) -> pure $ statusToCInt OK
       otherwise ->  pure $ statusToCInt Fatal
 
 setCorrespondingValue :: FMIComponent -> CInt -> FMIComponent
@@ -75,4 +77,10 @@ getState = deRefStablePtr >=> readIORef
 
 -- Stores state
 writeState :: StablePtr (IORef a) -> a -> IO ()
-writeState ptr state = deRefStablePtr ptr >>= \ioref -> writeIORef ioref state
+writeState ptr state = do
+  ioref <- deRefStablePtr ptr
+  writeIORef ioref state
+
+-- Invoked from FMU
+setup :: (Generic a, Generic b) => int -> a -> b -> IO ()
+setup = undefined

@@ -1,22 +1,21 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-
+{-# LANGUAGE DeriveGeneric #-}
 module FMU where
 
-import HFMU
-import System.Environment
+import qualified HFMU as HFMU
 import Vars
-import UPorts
+import GHC.Generics
 
-foreign export ccall initDoStepFunction :: IO ()
-initDoStepFunction :: IO ()
-initDoStepFunction = HFMU.storeDoStepFunction doStep
+foreign export ccall setup :: IO ()
+setup :: IO ()
+setup = HFMU.setup doStep inputs outputs
 
-doStep :: DoStepData -> IO (DoStepReturn)
-doStep x =
-  let ctxt = context (x :: DoStepData)
-      ctxt' = UPorts.setOutputValve ctxt (not $ UPorts.getOutputValve ctxt)
-  in
-    pure DoStepReturn {context = ctxt', status=OK}
+data Inputs = Inputs {pValve :: Port} deriving (Generic)
+inputs :: Inputs
+inputs = Inputs {pValve = Port {vRef = 1, causality = Input, type' = Boolean, val = BooleanVal False}}
 
-fmuPorts :: Ports
-fmuPorts = Ports {inputPorts = [inputLevel], outputPorts=[outputValve],parameterPorts=[]}
+data Outputs = Outputs {pLevel :: Port} deriving (Generic)
+outputs :: Outputs
+outputs = Outputs {pLevel = Port {vRef = 2, causality = Output, type' = Real, val = RealVal 1.5}}
+
+doStep :: Int
+doStep = 1
