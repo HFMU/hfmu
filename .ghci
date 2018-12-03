@@ -1,2 +1,4 @@
 :set -fwarn-unused-binds -fwarn-unused-imports
 :set -isrc
+:set -fobject-code
+:load src/HFMU.hs

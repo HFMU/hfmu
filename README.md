@@ -14,4 +14,23 @@ https://github.com/ocharles/plhaskell/blob/master/smallmain.c
 The HFMIInterface represents different types needed to implement the C-functions of FMI.
 Some of these types are generated using hsc2hs - see the hsc repository.
 
+### Issue with foreign import declarations
+Execution `cabal new-repl` throws several errors due to foreign import declarations
+
+``` sh
+src/HFMU.hs:39:1: error:
+    • Illegal foreign declaration: requires unregisterised, llvm (-fllvm) or native code generation (-fasm)
+    • When checking declaration:
+        foreign export ccall "fmi2SetupExperiment" fmi2SetupExperiment
+          :: FMISetupExperimentType
+```
+
+To solve this write: `cabal new-repl --repl-options -fobject-code**. 
+
+**Alternative Approach:** the `.ghci` file has been fixed to account for this by
+adding `:set -fobject-code`. Thereby it works with: `cabal new-repl`, `ghci` and
+`ghcid -c "cabal new-repl"`.
+Furthermore, it is possible to just execute `ghcid` as a `.ghcid` file has been
+specified, which contains `-c "cabal new-repl"`
+
 
