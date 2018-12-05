@@ -1,21 +1,37 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module FMU where
 
-import qualified HFMU as HFMU
 import Vars
-import GHC.Generics
+import HSFMIInterface
+import Data.Tuple.Sequence (sequenceT)
+import HMOperations
+import SVs
+import qualified HFMU as H
 
 foreign export ccall setup :: IO ()
 setup :: IO ()
-setup = HFMU.setup doStep inputs outputs
+--setup = HFMU.setup doStep inputs outputs
+setup = H.setup doStep inputs parameters outputs
 
-data Inputs = Inputs {pValve :: Port} deriving (Generic)
-inputs :: Inputs
-inputs = Inputs {pValve = Port {vRef = 1, causality = Input, type' = Boolean, val = BooleanVal False}}
+doStep :: Inputs -> Outputs -> Parameters -> (Status, Outputs)
+doStep inp out par =
+  let valve :: Maybe SVTypeVal =
+        do
+          mM <- retrieveMinAndMaxLevel par
+          level <- getPortVal inp "level"
+          calcValve level mM $ getPortVal out "valve"
+  in
+    case valve of
+      Just v -> (OK, adjustPortVal out "valve" v)
+      Nothing -> (Fatal, out)
 
-data Outputs = Outputs {pLevel :: Port} deriving (Generic)
-outputs :: Outputs
-outputs = Outputs {pLevel = Port {vRef = 2, causality = Output, type' = Real, val = RealVal 1.5}}
+retrieveMinAndMaxLevel :: Parameters -> Maybe (SVTypeVal, SVTypeVal)
+retrieveMinAndMaxLevel par =
+    sequenceT (getPortVal par "minLevel",  getPortVal par "maxLevel")
 
-doStep :: Int
-doStep = 1
+calcValve :: SVTypeVal -> (SVTypeVal,SVTypeVal) -> Maybe SVTypeVal -> Maybe SVTypeVal
+calcValve (RealVal lvl) (RealVal min, RealVal max) prevValve
+  | lvl <= min = Just $ BooleanVal False
+  | lvl >= max = Just $ BooleanVal True
+  | otherwise = prevValve
+calcValve _ _ _ = Nothing

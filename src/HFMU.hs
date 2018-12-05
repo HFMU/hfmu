@@ -10,7 +10,7 @@ import Foreign (Ptr, nullPtr, FunPtr, StablePtr)
 import Foreign
 import Data.IORef
 import Control.Monad
-import GHC.Generics
+import Vars
 
 
 foreign import ccall "dynamic" mkFunPtrLogger :: CallbackLogger -> CompEnvT -> CString -> FMIStatus -> CString -> CString -> IO ()
@@ -82,5 +82,5 @@ writeState ptr state = do
   writeIORef ioref state
 
 -- Invoked from FMU
-setup :: (Generic a, Generic b) => int -> a -> b -> IO ()
-setup = undefined
+setup :: (Inputs -> Outputs -> Parameters -> (Status, Outputs)) -> Inputs -> Outputs -> Parameters -> IO ()
+setup fDoStep inp out par = return ()

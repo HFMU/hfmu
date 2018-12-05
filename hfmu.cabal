@@ -53,13 +53,13 @@ foreign-library HFMU
      mod-def-file: HFMU.def
   -- Modules included in this library, other than Main.
 
-  other-modules: HFMU, HSFMIInterface, FMU, Vars
+  other-modules: HFMU, HSFMIInterface, FMU, Vars, HMOperations, HSFMIInterface, SVs
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >= 4.10
+  build-depends:       base >= 4.10, unordered-containers, tuple
 
   -- Directories containing source files.
   hs-source-dirs:      src
