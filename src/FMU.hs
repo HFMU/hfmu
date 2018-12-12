@@ -5,13 +5,13 @@ import Vars
 import HSFMIInterface
 import Data.Tuple.Sequence (sequenceT)
 import HMOperations
-import SVs
+import qualified SVs
 import qualified HFMU as H
 
 foreign export ccall setup :: IO ()
 setup :: IO ()
 --setup = HFMU.setup doStep inputs outputs
-setup = H.setup doStep inputs parameters outputs
+setup = H.setup Setup {ins = SVs.inputs, outs = SVs.outputs, pars = SVs.parameters, doStepFunc = FMU.doStep}
 
 doStep :: Inputs -> Outputs -> Parameters -> (Status, Outputs)
 doStep inp out par =

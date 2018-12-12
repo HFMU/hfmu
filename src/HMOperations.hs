@@ -9,3 +9,5 @@ adjustPortVal sv name v = HM.adjust (\p -> p {val = v}) name sv
 
 getPortVal :: SV -> String -> Maybe SVTypeVal
 getPortVal sv name = val <$> HM.lookup name sv
+
+

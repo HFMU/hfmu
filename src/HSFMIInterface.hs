@@ -7,18 +7,13 @@ import Foreign.C.String
 import Control.Monad (ap)
 import Data.IORef
 
-data FMIComponent = FMIComponent {testInput :: Int,
-                                  testOutput :: Int,
-                                 stopTime :: Maybe CDouble,
-                                 state :: FMUState}
-
 type CompEnvT = Ptr ()
 type FMIStatus = CInt
 type FMIType = CInt
 
 statusToCInt :: Status -> CInt
 statusToCInt =  fromIntegral . fromEnum
-data FMUState = ModelUnderEvaluation | ModelInitialized deriving (Enum, Show)
+data FMUState = SlaveUnderEvaluationA | SlaveUnderEvaluationB | SlaveInitialized deriving (Enum, Show)
 data Status = OK | Warning | Discard | Error | Fatal | Pending deriving (Enum, Show)
 type CallbackLogger = FunPtr(CompEnvT -> CString -> FMIStatus -> CString -> CString -> IO ())
 type StepFinished = FunPtr(CompEnvT -> FMIStatus -> IO ())
@@ -45,13 +40,3 @@ instance Storable CallbackFunctions where
     `ap`  ((\hsc_ptr -> peekByteOff hsc_ptr 32) p)
 {-# LINE 34 "HSFMIInterface.hsc" #-}
 
-type FMUStateType = StablePtr (IORef FMIComponent)
-type FMIFuncReturn = IO (CInt)
-
-type FMISetupExperimentType = FMUStateType -> CBool -> CDouble -> CDouble -> CBool -> CDouble -> FMIFuncReturn
-
-type FMIEnterInitializationModeType = FMUStateType -> FMIFuncReturn
-
-type FMIExitInitializationModeType = FMUStateType -> FMIFuncReturn
-
-type FMISetIntegerType = FMUStateType -> Ptr CInt -> CSize -> Ptr CInt -> FMIFuncReturn
