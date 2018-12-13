@@ -37,4 +37,6 @@ data FMIComponent = FMIComponent {inputs :: Inputs,
                                   doStep :: DoStepType,
                                   stopTime :: Maybe CDouble,
                                   state :: FMUState,
-                                  period_ :: Double}
+                                  period_ :: Double,
+                                  remTime :: Double,
+                                  endTime :: Double}

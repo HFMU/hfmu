@@ -69,42 +69,91 @@ fmi2ExitInitializationMode comp = do
   writeState comp $ updateState state FMII.SlaveInitialized
   pure . FMII.statusToCInt $ FMII.OK
 
+
+
 foreign export ccall fmi2SetInteger :: FF.FMISetIntegerType
 fmi2SetInteger :: FF.FMISetIntegerType
-fmi2SetInteger comp varRefs size varVals = do
-  varRefs' <- peekArray (fromIntegral size) varRefs
-  varVals' <- peekArray (fromIntegral size) varVals
-  let refVal = zip varRefs' varVals' in
-    case head refVal of
-      (1,1) -> pure $ FMII.statusToCInt FMII.OK
-      otherwise ->  pure $ FMII.statusToCInt FMII.Fatal
-      
+fmi2SetInteger comp varRefs size varVals =
+  setLogicImpure comp varRefs size varVals (V.IntegerVal . fromIntegral)
+
 foreign export ccall fmi2SetReal :: FF.FMISetRealType
 fmi2SetReal :: FF.FMISetRealType
-fmi2SetReal comp varRefs size varVals = do
-  state <- getState comp
-  varRefs' :: [CInt] <- peekArray (fromIntegral size) varRefs
-  varVals' :: [CDouble] <- peekArray (fromIntegral size) varVals
-  let varVals'' = map (\x -> (V.RealVal . realToFrac) x) varVals'
-      refVals :: [(CInt, V.SVTypeVal)] = zip varRefs' varVals''
-      inputs :: V.Inputs = V.inputs state
-      inputs' = foldr updateVal inputs refVals 
-    in
-    do
-      writeState comp $ updateInputs state inputs'
-      pure . FMII.statusToCInt $ FMII.OK
-      
--- fmi2Component comp, fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Real noSetFMUStatePriorToCurrentPoint
+fmi2SetReal comp varRefs size varVals =
+  setLogicImpure comp varRefs size varVals (V.RealVal . realToFrac)
+
+setLogicImpure :: Storable b => FF.FMUStateType -> Ptr CInt -> CSize -> Ptr b -> (b -> V.SVTypeVal) -> IO CInt
+setLogicImpure comp varRefs size varVals varValConvF =
+  do
+    state <- getState comp
+    varRefs' :: [CInt] <- peekArray (fromIntegral size) varRefs
+    varVals' <- peekArray (fromIntegral size) varVals
+    let
+      varVals'' :: [V.SVTypeVal] = map varValConvF varVals'
+      varRefs'' = map fromIntegral varRefs'
+      stateStatus = setLogic state varRefs'' varVals''
+      in
+      updStateCalcStatus comp stateStatus
+
+
+setLogic :: V.FMIComponent -> [Int] -> [V.SVTypeVal] -> (V.FMIComponent, FMII.Status)
+setLogic state@V.FMIComponent {inputs = ys } vRefs vVals =
+  let
+    refVals = zip vRefs vVals
+    ys' = foldr updateVal ys refVals in
+    (state {V.inputs = ys'}, FMII.OK)
+  where
+    updateVal :: (Int, V.SVTypeVal) -> V.SV -> V.SV
+    updateVal (valRef, valVal) hm = HM.map updateValWithValRef hm
+      where
+        updateValWithValRef :: V.Port -> V.Port
+        updateValWithValRef x = if V.vRef x == valRef then x {V.val = valVal} else x
+
+
+-- fmi2Component comp,
+-- fmi2Real currentCommunicationPoint,
+-- fmi2Real communicationStepSize,
+-- fmi2Real noSetFMUStatePriorToCurrentPoint
+-- 
 foreign export ccall fmi2DoStep :: FF.FMIDoStepType
 fmi2DoStep :: FF.FMIDoStepType
-fmi2DoStep = undefined
+fmi2DoStep comp ccp css ns =
+  do
+    state <- getState comp
+    let
+      css' = realToFrac css
+      ccp' = realToFrac ccp
+      (state', status) = doStepLogic state ccp' css' (toBool ns)
+      in
+      case status of
+        FMII.OK -> writeState comp state' >> (pure . FMII.statusToCInt) FMII.OK
+        otherwise -> (pure . FMII.statusToCInt) status
 
-updateVal :: (CInt, V.SVTypeVal) -> V.SV -> V.SV
-updateVal (valRef, valVal) hm = HM.map updateValWithValRef hm
+
+doStepLogic :: V.FMIComponent -> Double -> Double -> Bool -> (V.FMIComponent, FMII.Status)
+doStepLogic state ccp css ns =
+  if ccp + css > V.endTime state
+  then (state, FMII.Fatal)
+  else
+    let RDS {remTime = rt, outputs = us, status = st } = calcDoStep (V.doStep state) (V.inputs state) (V.outputs state) (V.parameters state) (V.period_ state) (V.remTime state) (V.endTime state) css
+    in (state {V.remTime = rt, V.outputs = us}, st)
+
+data RDS = RDS {remTime :: Double, outputs :: V.Outputs, status :: FMII.Status}
+
+calcDoStep :: V.DoStepType -> V.Inputs -> V.Outputs -> V.Parameters -> Double -> Double -> Double -> Double -> RDS
+calcDoStep doStepF ins outs pars peri remTime endTime css =
+  if css < remTime
+  then RDS {remTime = remTime - css, outputs = outs, status = FMII.OK}
+  else execDoStep
   where
-    updateValWithValRef :: V.Port -> V.Port
-    updateValWithValRef x = if V.vRef x == fromIntegral valRef then x {V.val = valVal} else x
-  
+    execDoStep =
+      let
+        (st, outs') = doStepF ins outs pars
+        css' = css - remTime -- ccs' is the remaining communication step size
+      in
+        if st == FMII.OK
+        then calcDoStep doStepF ins outs' pars peri peri endTime css'
+        else RDS {remTime = remTime, outputs = outs, status = st}
+
 
 -- Retrieves state
 getState :: StablePtr (IORef a) -> IO a
@@ -136,3 +185,6 @@ updateState c s = c {V.state = s}
 
 updateInputs :: V.FMIComponent -> V.Inputs -> V.FMIComponent
 updateInputs c i = c {V.inputs = i}
+
+updStateCalcStatus :: FF.FMUStateType -> (V.FMIComponent, FMII.Status) -> IO CInt
+updStateCalcStatus comp (state,status) = writeState comp state >> (pure . FMII.statusToCInt) status

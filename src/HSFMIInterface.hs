@@ -14,7 +14,7 @@ type FMIType = CInt
 statusToCInt :: Status -> CInt
 statusToCInt =  fromIntegral . fromEnum
 data FMUState = SlaveUnderEvaluationA | SlaveUnderEvaluationB | SlaveInitialized deriving (Enum, Show)
-data Status = OK | Warning | Discard | Error | Fatal | Pending deriving (Enum, Show)
+data Status = OK | Warning | Discard | Error | Fatal | Pending deriving (Enum, Show, Eq)
 type CallbackLogger = FunPtr(CompEnvT -> CString -> FMIStatus -> CString -> CString -> IO ())
 type StepFinished = FunPtr(CompEnvT -> FMIStatus -> IO ())
 data CallbackFunctions = CallbackFunctions {
