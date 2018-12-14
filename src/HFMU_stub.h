@@ -7,6 +7,9 @@ extern HsInt32 fmi2SetupExperiment(HsStablePtr a1, HsWord8 a2, HsDouble a3, HsDo
 extern HsInt32 fmi2EnterInitializationMode(HsStablePtr a1);
 extern HsInt32 fmi2ExitInitializationMode(HsStablePtr a1);
 extern HsInt32 fmi2SetInteger(HsStablePtr a1, HsPtr a2, HsWord64 a3, HsPtr a4);
+extern HsInt32 fmi2SetReal(HsStablePtr a1, HsPtr a2, HsWord64 a3, HsPtr a4);
+extern HsInt32 fmi2GetBoolean(HsStablePtr a1, HsPtr a2, HsWord64 a3, HsPtr a4);
+extern HsInt32 fmi2DoStep(HsStablePtr a1, HsDouble a2, HsDouble a3, HsWord8 a4);
 #ifdef __cplusplus
 }
 #endif

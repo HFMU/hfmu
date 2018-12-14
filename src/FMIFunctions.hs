@@ -16,9 +16,17 @@ type FMIEnterInitializationModeType = FMUStateType -> FMIFuncReturn
 
 type FMIExitInitializationModeType = FMUStateType -> FMIFuncReturn
 
+type FMITerminateType = FMUStateType -> FMIFuncReturn
+
+type FMIFreeInstanceType = FMUStateType -> FMIFuncReturn
+
 type FMISetIntegerType = FMUStateType -> Ptr CInt -> CSize -> Ptr CInt -> FMIFuncReturn
 
 type FMISetRealType = FMUStateType -> Ptr CInt -> CSize -> Ptr CDouble -> FMIFuncReturn
+
+type FMIGetBooleanType = FMUStateType -> Ptr CInt -> CSize -> Ptr CBool -> FMIFuncReturn
+
+type FMIGetRealType = FMUStateType -> Ptr CInt -> CSize -> Ptr CDouble -> FMIFuncReturn
 
 type FMIDoStepType = FMUStateType -> CDouble -> CDouble -> CBool -> FMIFuncReturn
 

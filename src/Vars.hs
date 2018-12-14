@@ -19,21 +19,14 @@ data Port = Port {vRef :: Int,
                   type' :: SVType,
                   val :: SVTypeVal}
 
-type SV = HashMap String Port
-type Inputs = SV
-type Outputs = SV
-type Parameters = SV
-type DoStepType = Inputs -> Outputs -> Parameters -> (Status, Outputs)
-data Setup = Setup {ins :: Inputs,
-                   outs :: Outputs,
-                   pars :: Parameters,
+type SVs = HashMap String Port
+type DoStepType = SVs -> (Status, SVs)
+data Setup = Setup {variables :: SVs,
                    doStepFunc :: DoStepType,
                    period :: Double}
 
 
-data FMIComponent = FMIComponent {inputs :: Inputs,
-                                  outputs :: Outputs,
-                                  parameters :: Parameters,
+data FMIComponent = FMIComponent {vars :: SVs,
                                   doStep :: DoStepType,
                                   stopTime :: Maybe CDouble,
                                   state :: FMUState,
