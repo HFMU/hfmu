@@ -15,7 +15,7 @@ import qualified Vars as V
 import System.IO.Unsafe
 import qualified Data.HashMap.Strict as HM
 import Data.List
-
+import Debug.Trace
 
 foreign import ccall "dynamic" mkFunPtrLogger :: FMII.CallbackLogger -> FMII.CompEnvT -> CString -> FMII.FMIStatus -> CString -> CString -> IO ()
 
@@ -39,10 +39,11 @@ fmi2Instantiate _ _ _ _ ptrCbFuncs _ _ = do
   -- Move Setup to FMIComponent
   state <- getSetupImpure setupVar
   case state of
-    Nothing -> newStablePtr =<< newIORef V.FMIComponent {} -- ERROR SHOULD BE THROWN
+    Nothing -> putStrLn "NothingCase" >> (newStablePtr =<< newIORef V.FMIComponent {}) -- ERROR SHOULD BE THROWN
     Just (s :: V.Setup) -> do
+      putStrLn "JustCase"
       ioref <- newIORef  V.FMIComponent {vars = V.variables s, doStep = V.doStepFunc s,
-                                         stopTime = Nothing, state = FMII.Instantiated, period_ = V.period s}
+                                         endTime = Nothing, state = FMII.Instantiated, period_ = V.period s, remTime = V.period s}
       newStablePtr ioref
 
 -- StablePtr IORef FMIComponent -> CBool -> CDouble -> CDouble -> CBool -> CDouble -> IO (Status)
@@ -57,14 +58,14 @@ foreign export ccall fmi2SetupExperiment :: FF.FMISetupExperimentType
 fmi2SetupExperiment :: FF.FMISetupExperimentType
 fmi2SetupExperiment comp _ _ _ _ stopTime = do
   state' <- getStateImpure comp
-  writeStateImpure comp $ state' {V.stopTime = Just stopTime}
+  writeStateImpure comp $ state' {V.endTime = Just $ realToFrac stopTime}
   (pure . FMII.statusToCInt) FMII.OK
 
 foreign export ccall fmi2EnterInitializationMode :: FF.FMIEnterInitializationModeType
 fmi2EnterInitializationMode :: FF.FMIEnterInitializationModeType
 fmi2EnterInitializationMode comp = do
   state <- getStateImpure comp
-  case V.stopTime state of
+  case V.endTime state of
     Just _ -> (writeStateImpure comp $ state {V.state = FMII.InitializationMode}) >> pure (FMII.statusToCInt FMII.OK)
     Nothing -> pure $ FMII.statusToCInt FMII.Fatal
 
@@ -101,11 +102,11 @@ fmi2SetReal :: FF.FMISetRealType
 fmi2SetReal comp varRefs size varVals =
   setLogicImpure comp varRefs size varVals (V.RealVal . realToFrac)
 
-setLogicImpure :: Storable b => FF.FMUStateType -> Ptr CInt -> CSize -> Ptr b -> (b -> V.SVTypeVal) -> IO CInt
+setLogicImpure :: Storable b => FF.FMUStateType -> Ptr CUInt -> CSize -> Ptr b -> (b -> V.SVTypeVal) -> IO CInt
 setLogicImpure comp varRefs size varVals varValConvF =
   do
     state <- getStateImpure comp
-    varRefs' :: [CInt] <- peekArray (fromIntegral size) varRefs
+    varRefs' :: [CUInt] <- peekArray (fromIntegral size) varRefs
     varVals' <- peekArray (fromIntegral size) varVals
     let
       varVals'' :: [V.SVTypeVal] = map varValConvF varVals'
@@ -153,10 +154,10 @@ fmi2GetReal comp varRefs size varVals =
 
 
 
-getLogicImpure :: Storable a => FF.FMUStateType -> Ptr CInt -> CSize -> Ptr a -> (V.SVTypeVal -> Maybe a) -> IO CInt
+getLogicImpure :: Storable a => FF.FMUStateType -> Ptr CUInt -> CSize -> Ptr a -> (V.SVTypeVal -> Maybe a) -> IO CInt
 getLogicImpure comp varRefs size varVals toVarValF = do
   state <- getStateImpure comp
-  varRefs' :: [CInt] <- peekArray (fromIntegral size) varRefs
+  varRefs' :: [CUInt] <- peekArray (fromIntegral size) varRefs
   let (values,status) = getLogic state (map fromIntegral varRefs') toVarValF in
     case values of
       Nothing -> pure . FMII.statusToCInt $ status
@@ -204,11 +205,14 @@ fmi2DoStep comp ccp css ns =
 
 doStepLogic :: V.FMIComponent -> Double -> Double -> Bool -> (V.FMIComponent, FMII.Status)
 doStepLogic state ccp css ns =
-  if ccp + css > V.endTime state
-  then (state, FMII.Fatal)
-  else
-    let RDS {remTime = rt, vars = vs, status = st } = calcDoStep (V.doStep state) (V.vars state) (V.period_ state) (V.remTime state) (V.endTime state) css
-    in (state {V.remTime = rt, V.vars = vs}, st)
+  case V.endTime state of
+    Nothing -> (state, FMII.Fatal)
+    Just endTime ->
+      if ccp + css > endTime
+      then (state, FMII.Fatal)
+      else
+        let RDS {remTime = rt, vars = vs, status = st } = calcDoStep (V.doStep state) (V.vars state) (V.period_ state) (V.remTime state) endTime css
+        in (state {V.remTime = rt, V.vars = vs}, st)
 
 data RDS = RDS {remTime :: Double, vars :: V.SVs, status :: FMII.Status}
 
@@ -245,7 +249,7 @@ setupVar = unsafePerformIO $ newIORef Nothing
 storeSetupImpure :: V.Setup-> IO ()
 storeSetupImpure = writeIORef setupVar . Just
 
-getSetupImpure :: IORef (Maybe (V.Setup)) -> IO (Maybe V.Setup)
+getSetupImpure :: IORef (Maybe V.Setup) -> IO (Maybe V.Setup)
 getSetupImpure = readIORef
 
 

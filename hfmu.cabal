@@ -53,7 +53,7 @@ foreign-library HFMU
      mod-def-file: HFMU.def
   -- Modules included in this library, other than Main.
 
-  other-modules: HFMU, HSFMIInterface, FMU, Vars, HMOperations, HSFMIInterface, SVs
+  other-modules: HFMU, HSFMIInterface, FMU, Vars, HMOperations, HSFMIInterface, SVs, FMIFunctions
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

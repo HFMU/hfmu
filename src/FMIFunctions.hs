@@ -3,7 +3,7 @@ module FMIFunctions where
 import Data.IORef
 import HSFMIInterface
 import Foreign (Ptr, nullPtr, FunPtr, StablePtr)
-import Foreign.C.Types (CInt, CBool, CDouble, CSize)
+import Foreign.C.Types (CInt, CUInt, CBool, CDouble, CSize)
 import Vars
 
 type FMUStateType = StablePtr (IORef FMIComponent)
@@ -20,13 +20,13 @@ type FMITerminateType = FMUStateType -> FMIFuncReturn
 
 type FMIFreeInstanceType = FMUStateType -> FMIFuncReturn
 
-type FMISetIntegerType = FMUStateType -> Ptr CInt -> CSize -> Ptr CInt -> FMIFuncReturn
+type FMISetIntegerType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CInt -> FMIFuncReturn
 
-type FMISetRealType = FMUStateType -> Ptr CInt -> CSize -> Ptr CDouble -> FMIFuncReturn
+type FMISetRealType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CDouble -> FMIFuncReturn
 
-type FMIGetBooleanType = FMUStateType -> Ptr CInt -> CSize -> Ptr CBool -> FMIFuncReturn
+type FMIGetBooleanType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CInt -> FMIFuncReturn
 
-type FMIGetRealType = FMUStateType -> Ptr CInt -> CSize -> Ptr CDouble -> FMIFuncReturn
+type FMIGetRealType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CDouble -> FMIFuncReturn
 
 type FMIDoStepType = FMUStateType -> CDouble -> CDouble -> CBool -> FMIFuncReturn
 

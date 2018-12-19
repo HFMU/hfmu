@@ -8,11 +8,12 @@ import HMOperations
 import qualified SVs
 import qualified HFMU as H
 import qualified Data.HashMap.Strict as HM
+import Debug.Trace
 
 foreign export ccall setup :: IO ()
 setup :: IO ()
 --setup = HFMU.setup doStep inputs outputs
-setup = H.setup Setup {variables = HM.union SVs.inputs (HM.union SVs.outputs SVs.parameters), doStepFunc = FMU.doStep}
+setup = H.setup Setup {variables = HM.union SVs.inputs (HM.union SVs.outputs SVs.parameters), doStepFunc = FMU.doStep, period=0.1}
 
 doStep :: SVs -> (Status, SVs)
 doStep svs =
