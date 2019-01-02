@@ -20,15 +20,22 @@ data Port = Port {vRef :: Int,
                   val :: SVTypeVal} deriving (Show)
 
 type SVs = HashMap String Port
-type DoStepType = SVs -> (Status, SVs)
-data Setup = Setup {variables :: SVs,
-                   doStepFunc :: DoStepType,
-                   period :: Double}
+type DoStepType a = SVs -> UserState a -> DoStepResult a--(Status, SVs)
+data InstState a = InstState {scalarVariables :: SVs, custom :: Maybe (UserState a)}
+data Setup a = Setup {variables :: SVs,
+                   doStepFunc :: DoStepType a,
+                   period :: Double,
+                   userState :: UserState a}
 
 
-data FMIComponent = FMIComponent {vars :: SVs,
-                                  doStep :: DoStepType,
+data FMIComponent x = FMIComponent {vars :: SVs,
+                                  doStep :: DoStepType x,
                                   endTime :: Maybe Double,
                                   state :: FMUState,
                                   period_ :: Double,
-                                  remTime :: Double} 
+                                  remTime :: Double,
+                                  userState_ :: UserState x }
+
+data UserState x = UserState x
+
+data DoStepResult x = DoStepResult {dsrStatus :: Status, dsrSvs :: SVs, dsrState :: UserState x }

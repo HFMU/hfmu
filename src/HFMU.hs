@@ -26,8 +26,8 @@ foreign import ccall "dynamic" mkFunPtrLogger :: FMII.CallbackLogger -> FMII.Com
 
 -- First function call to the FMU. Should move Setup to FMIComponent
 --fmi2Instantiate :: instanceName -> fmuType -> fmuGUID -> fmuResourceLocation -> functions -> visible -> loggingOn
-foreign export ccall fmi2Instantiate :: CString -> CInt -> CString -> CString -> Ptr FMII.CallbackFunctions -> CBool -> CBool -> IO (StablePtr (IORef V.FMIComponent))
-fmi2Instantiate :: CString -> CInt -> CString -> CString -> Ptr FMII.CallbackFunctions -> CBool -> CBool -> IO (StablePtr (IORef V.FMIComponent))
+foreign export ccall fmi2Instantiate :: CString -> CInt -> CString -> CString -> Ptr FMII.CallbackFunctions -> CBool -> CBool -> IO (StablePtr (IORef (V.FMIComponent a)))
+fmi2Instantiate :: CString -> CInt -> CString -> CString -> Ptr FMII.CallbackFunctions -> CBool -> CBool -> IO (StablePtr (IORef (V.FMIComponent a)))
 fmi2Instantiate _ _ _ _ ptrCbFuncs _ _ = do
   (cbFuncs :: FMII.CallbackFunctions) <- peek ptrCbFuncs
   -- logger fmi2ComponentEnv instanceName::String Status::fmi2Status Category::String Message::String
@@ -40,10 +40,10 @@ fmi2Instantiate _ _ _ _ ptrCbFuncs _ _ = do
   state <- getSetupImpure setupVar
   case state of
     Nothing -> putStrLn "NothingCase" >> (newStablePtr =<< newIORef V.FMIComponent {}) -- ERROR SHOULD BE THROWN
-    Just (s :: V.Setup) -> do
+    Just s -> do
       putStrLn "JustCase"
       ioref <- newIORef  V.FMIComponent {vars = V.variables s, doStep = V.doStepFunc s,
-                                         endTime = Nothing, state = FMII.Instantiated, period_ = V.period s, remTime = V.period s}
+                                         endTime = Nothing, state = FMII.Instantiated, period_ = V.period s, remTime = V.period s, userState_ = V.userState s}
       newStablePtr ioref
 
 -- StablePtr IORef FMIComponent -> CBool -> CDouble -> CDouble -> CBool -> CDouble -> IO (Status)
@@ -54,36 +54,36 @@ fmi2Instantiate _ _ _ _ ptrCbFuncs _ _ = do
 -- fmi2Boolean stopTimeDefined,
 -- fmi2Real stopTime);
 -- Everything besides stopTime is ignored and stopTime is expected to be defined.
-foreign export ccall fmi2SetupExperiment :: FF.FMISetupExperimentType
-fmi2SetupExperiment :: FF.FMISetupExperimentType
+foreign export ccall fmi2SetupExperiment :: FF.FMISetupExperimentType a
+fmi2SetupExperiment :: FF.FMISetupExperimentType a
 fmi2SetupExperiment comp _ _ _ _ stopTime = do
   state' <- getStateImpure comp
   writeStateImpure comp $ state' {V.endTime = Just $ realToFrac stopTime}
   (pure . FMII.statusToCInt) FMII.OK
 
-foreign export ccall fmi2EnterInitializationMode :: FF.FMIEnterInitializationModeType
-fmi2EnterInitializationMode :: FF.FMIEnterInitializationModeType
+foreign export ccall fmi2EnterInitializationMode :: FF.FMIEnterInitializationModeType a
+fmi2EnterInitializationMode :: FF.FMIEnterInitializationModeType a
 fmi2EnterInitializationMode comp = do
   state <- getStateImpure comp
   case V.endTime state of
     Just _ -> (writeStateImpure comp $ state {V.state = FMII.InitializationMode}) >> pure (FMII.statusToCInt FMII.OK)
     Nothing -> pure $ FMII.statusToCInt FMII.Fatal
 
-foreign export ccall fmi2ExitInitializationMode :: FF.FMIExitInitializationModeType
-fmi2ExitInitializationMode :: FF.FMIExitInitializationModeType
+foreign export ccall fmi2ExitInitializationMode :: FF.FMIExitInitializationModeType a
+fmi2ExitInitializationMode :: FF.FMIExitInitializationModeType a
 fmi2ExitInitializationMode comp = do
   state <- getStateImpure comp
   writeStateImpure comp $ updateState state FMII.SlaveInitialized
   pure . FMII.statusToCInt $ FMII.OK
 
-foreign export ccall fmi2Terminate :: FF.FMITerminateType
-fmi2Terminate :: FF.FMITerminateType
+foreign export ccall fmi2Terminate :: FF.FMITerminateType a
+fmi2Terminate :: FF.FMITerminateType a
 fmi2Terminate comp = do
   state <- getStateImpure comp
   updStateCalcStatusImpure comp (state {V.state = FMII.Terminated},FMII.OK)  
 
-foreign export ccall fmi2FreeInstance :: FF.FMIFreeInstanceType
-fmi2FreeInstance :: FF.FMIFreeInstanceType
+foreign export ccall fmi2FreeInstance :: FF.FMIFreeInstanceType a
+fmi2FreeInstance :: FF.FMIFreeInstanceType a
 fmi2FreeInstance comp = do
   freeStablePtr comp
   pure . FMII.statusToCInt $ FMII.OK 
@@ -92,17 +92,17 @@ fmi2FreeInstance comp = do
 -- =================== SET FUNCTIONS ============================
 -- ==============================================================
 
-foreign export ccall fmi2SetInteger :: FF.FMISetIntegerType
-fmi2SetInteger :: FF.FMISetIntegerType
+foreign export ccall fmi2SetInteger :: FF.FMISetIntegerType a
+fmi2SetInteger :: FF.FMISetIntegerType a
 fmi2SetInteger comp varRefs size varVals =
   setLogicImpure comp varRefs size varVals (V.IntegerVal . fromIntegral)
 
-foreign export ccall fmi2SetReal :: FF.FMISetRealType
-fmi2SetReal :: FF.FMISetRealType
+foreign export ccall fmi2SetReal :: FF.FMISetRealType a
+fmi2SetReal :: FF.FMISetRealType a
 fmi2SetReal comp varRefs size varVals =
   setLogicImpure comp varRefs size varVals (V.RealVal . realToFrac)
 
-setLogicImpure :: Storable b => FF.FMUStateType -> Ptr CUInt -> CSize -> Ptr b -> (b -> V.SVTypeVal) -> IO CInt
+setLogicImpure :: Storable b => FF.FMUStateType a -> Ptr CUInt -> CSize -> Ptr b -> (b -> V.SVTypeVal) -> IO CInt
 setLogicImpure comp varRefs size varVals varValConvF =
   do
     state <- getStateImpure comp
@@ -116,7 +116,7 @@ setLogicImpure comp varRefs size varVals varValConvF =
       updStateCalcStatusImpure comp stateStatus
 
 
-setLogic :: V.FMIComponent -> [Int] -> [V.SVTypeVal] -> (V.FMIComponent, FMII.Status)
+setLogic :: V.FMIComponent a -> [Int] -> [V.SVTypeVal] -> (V.FMIComponent a, FMII.Status)
 setLogic state@V.FMIComponent {vars = vs} vRefs vVals =
   let
     refVals = zip vRefs vVals
@@ -134,8 +134,8 @@ setLogic state@V.FMIComponent {vars = vs} vRefs vVals =
 -- =================== GET FUNCTIONS ============================
 -- ==============================================================
 
-foreign export ccall fmi2GetBoolean :: FF.FMIGetBooleanType
-fmi2GetBoolean :: FF.FMIGetBooleanType
+foreign export ccall fmi2GetBoolean :: FF.FMIGetBooleanType a
+fmi2GetBoolean :: FF.FMIGetBooleanType a
 fmi2GetBoolean comp varRefs size varVals =
   let valToCBool (x :: V.SVTypeVal) =
         case x of
@@ -143,8 +143,8 @@ fmi2GetBoolean comp varRefs size varVals =
           _ -> Nothing in
     getLogicImpure comp varRefs size varVals valToCBool
 
-foreign export ccall fmi2GetReal :: FF.FMIGetRealType
-fmi2GetReal :: FF.FMIGetRealType
+foreign export ccall fmi2GetReal :: FF.FMIGetRealType a
+fmi2GetReal :: FF.FMIGetRealType a
 fmi2GetReal comp varRefs size varVals =
   let valToCDouble (x :: V.SVTypeVal) =
         case x of
@@ -154,7 +154,7 @@ fmi2GetReal comp varRefs size varVals =
 
 
 
-getLogicImpure :: Storable a => FF.FMUStateType -> Ptr CUInt -> CSize -> Ptr a -> (V.SVTypeVal -> Maybe a) -> IO CInt
+getLogicImpure :: Storable a => FF.FMUStateType b -> Ptr CUInt -> CSize -> Ptr a -> (V.SVTypeVal -> Maybe a) -> IO CInt
 getLogicImpure comp varRefs size varVals toVarValF = do
   state <- getStateImpure comp
   varRefs' :: [CUInt] <- peekArray (fromIntegral size) varRefs
@@ -163,7 +163,7 @@ getLogicImpure comp varRefs size varVals toVarValF = do
       Nothing -> pure . FMII.statusToCInt $ status
       Just values' -> pokeArray varVals values' >> (pure . FMII.statusToCInt) status
 
-getLogic :: V.FMIComponent -> [Int] -> (V.SVTypeVal -> Maybe a) -> (Maybe [a], FMII.Status )
+getLogic :: V.FMIComponent b -> [Int] -> (V.SVTypeVal -> Maybe a) -> (Maybe [a], FMII.Status )
 getLogic state vRefs valConvF =
   let outputPorts = HM.elems . V.vars $ state
       values = getVsFromVRefs outputPorts vRefs valConvF in
@@ -188,8 +188,8 @@ getVsFromVRefs ps refs f = traverse (\x -> f =<< findValWithRef x ps) refs
 -- fmi2Real communicationStepSize,
 -- fmi2Real noSetFMUStatePriorToCurrentPoint
 -- 
-foreign export ccall fmi2DoStep :: FF.FMIDoStepType
-fmi2DoStep :: FF.FMIDoStepType
+foreign export ccall fmi2DoStep :: FF.FMIDoStepType a
+fmi2DoStep :: FF.FMIDoStepType a
 fmi2DoStep comp ccp css ns =
   do
     state <- getStateImpure comp
@@ -203,7 +203,7 @@ fmi2DoStep comp ccp css ns =
         _ -> (pure . FMII.statusToCInt) status
 
 
-doStepLogic :: V.FMIComponent -> Double -> Double -> Bool -> (V.FMIComponent, FMII.Status)
+doStepLogic :: V.FMIComponent a -> Double -> Double -> Bool -> (V.FMIComponent a, FMII.Status)
 doStepLogic state ccp css ns =
   case V.endTime state of
     Nothing -> (state, FMII.Fatal)
@@ -211,25 +211,25 @@ doStepLogic state ccp css ns =
       if ccp + css > endTime
       then (state, FMII.Fatal)
       else
-        let RDS {remTime = rt, vars = vs, status = st } = calcDoStep (V.doStep state) (V.vars state) (V.period_ state) (V.remTime state) endTime css
-        in (state {V.remTime = rt, V.vars = vs}, st)
+        let RDS {remTime = rt, vars = vs, status = st, rdsState = rdsS } = calcDoStep (V.doStep state) (V.vars state) (V.period_ state) (V.remTime state) endTime css (V.userState_ state)
+        in (state {V.remTime = rt, V.vars = vs, V.userState_ = rdsS}, st)
 
-data RDS = RDS {remTime :: Double, vars :: V.SVs, status :: FMII.Status}
+data RDS a = RDS {remTime :: Double, vars :: V.SVs, status :: FMII.Status, rdsState :: V.UserState a}
 
-calcDoStep :: V.DoStepType -> V.SVs -> Double -> Double -> Double -> Double -> RDS
-calcDoStep doStepF svs peri remTime endTime css =
+calcDoStep :: V.DoStepType a -> V.SVs -> Double -> Double -> Double -> Double -> V.UserState a -> RDS a
+calcDoStep doStepF svs peri remTime endTime css us =
   if css < remTime
-  then RDS {remTime = remTime - css, vars = svs, status = FMII.OK}
+  then RDS {remTime = remTime - css, vars = svs, status = FMII.OK, rdsState = us}
   else execDoStep
   where
     execDoStep =
       let
-        (st, svs') = doStepF svs
+        V.DoStepResult {V.dsrStatus = st, dsrSvs = svs', dsrState = sta} = doStepF svs us 
         css' = css - remTime -- ccs' is the remaining communication step size
       in
         if st == FMII.OK
-        then calcDoStep doStepF svs' peri peri endTime css'
-        else RDS {remTime = remTime, vars = svs', status = st}
+        then calcDoStep doStepF svs' peri peri endTime css' sta
+        else RDS {remTime = remTime, vars = svs', status = st, rdsState = sta}
 
 
 
@@ -238,18 +238,18 @@ calcDoStep doStepF svs peri remTime endTime css =
 -- ==============================================================
 
 -- Invoked from FMU
-setup :: V.Setup -> IO ()
+setup :: V.Setup a -> IO ()
 setup = storeSetupImpure
 
 -- Functions related to the user defined doStep function
 {-# NOINLINE setupVar #-}
-setupVar :: IORef (Maybe (V.Setup))
+setupVar :: IORef (Maybe (V.Setup a))
 setupVar = unsafePerformIO $ newIORef Nothing
 
-storeSetupImpure :: V.Setup-> IO ()
+storeSetupImpure :: V.Setup a -> IO ()
 storeSetupImpure = writeIORef setupVar . Just
 
-getSetupImpure :: IORef (Maybe V.Setup) -> IO (Maybe V.Setup)
+getSetupImpure :: IORef (Maybe (V.Setup a)) -> IO (Maybe (V.Setup a))
 getSetupImpure = readIORef
 
 
@@ -269,16 +269,16 @@ writeStateImpure ptr state = do
 
 
 
-updStateCalcStatusImpure :: FF.FMUStateType -> (V.FMIComponent, FMII.Status) -> IO CInt
+updStateCalcStatusImpure :: FF.FMUStateType a -> (V.FMIComponent a, FMII.Status) -> IO CInt
 updStateCalcStatusImpure comp (state,status) = writeStateImpure comp state >> (pure . FMII.statusToCInt) status
 
 -- ==============================================================
 -- =================== UTIL FUNCTIONs ===========================
 -- ==============================================================
 
-updateState :: V.FMIComponent -> FMII.FMUState -> V.FMIComponent
+updateState :: V.FMIComponent a -> FMII.FMUState -> V.FMIComponent a
 updateState c s = c {V.state = s}
 
-updateInputs :: V.FMIComponent -> V.SVs -> V.FMIComponent
+updateInputs :: V.FMIComponent a -> V.SVs -> V.FMIComponent a
 updateInputs c i = c {V.vars = i}
 

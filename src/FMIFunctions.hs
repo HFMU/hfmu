@@ -6,27 +6,27 @@ import Foreign (Ptr, nullPtr, FunPtr, StablePtr)
 import Foreign.C.Types (CInt, CUInt, CBool, CDouble, CSize)
 import Vars
 
-type FMUStateType = StablePtr (IORef FMIComponent)
+type FMUStateType a = StablePtr (IORef (FMIComponent a))
 
 type FMIFuncReturn = IO (CInt)
 
-type FMISetupExperimentType = FMUStateType -> CBool -> CDouble -> CDouble -> CBool -> CDouble -> FMIFuncReturn
+type FMISetupExperimentType a = FMUStateType a -> CBool -> CDouble -> CDouble -> CBool -> CDouble -> FMIFuncReturn
 
-type FMIEnterInitializationModeType = FMUStateType -> FMIFuncReturn
+type FMIEnterInitializationModeType a = FMUStateType a -> FMIFuncReturn
 
-type FMIExitInitializationModeType = FMUStateType -> FMIFuncReturn
+type FMIExitInitializationModeType a = FMUStateType a -> FMIFuncReturn
 
-type FMITerminateType = FMUStateType -> FMIFuncReturn
+type FMITerminateType a = FMUStateType a -> FMIFuncReturn
 
-type FMIFreeInstanceType = FMUStateType -> FMIFuncReturn
+type FMIFreeInstanceType a = FMUStateType a -> FMIFuncReturn
 
-type FMISetIntegerType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CInt -> FMIFuncReturn
+type FMISetIntegerType a = FMUStateType a -> Ptr CUInt -> CSize -> Ptr CInt -> FMIFuncReturn
 
-type FMISetRealType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CDouble -> FMIFuncReturn
+type FMISetRealType a = FMUStateType a -> Ptr CUInt -> CSize -> Ptr CDouble -> FMIFuncReturn
 
-type FMIGetBooleanType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CInt -> FMIFuncReturn
+type FMIGetBooleanType a = FMUStateType a -> Ptr CUInt -> CSize -> Ptr CInt -> FMIFuncReturn
 
-type FMIGetRealType = FMUStateType -> Ptr CUInt -> CSize -> Ptr CDouble -> FMIFuncReturn
+type FMIGetRealType a = FMUStateType a -> Ptr CUInt -> CSize -> Ptr CDouble -> FMIFuncReturn
 
-type FMIDoStepType = FMUStateType -> CDouble -> CDouble -> CBool -> FMIFuncReturn
+type FMIDoStepType a = FMUStateType a -> CDouble -> CDouble -> CBool -> FMIFuncReturn
 
