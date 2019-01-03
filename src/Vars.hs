@@ -12,6 +12,7 @@ data SVTypeVal = RealVal Double | IntegerVal Int | StringVal String | BooleanVal
 data SVCausality = Input | Output | Parameter deriving (Show)
 data SVVariability = Fixed | Continuous | Discrete deriving (Show)
 data SVInitial = Exact | Calculated deriving (Show)
+
 data Port = Port {vRef :: Int,
                   causality :: SVCausality,
                   variability :: SVVariability,
@@ -20,13 +21,19 @@ data Port = Port {vRef :: Int,
                   val :: SVTypeVal} deriving (Show)
 
 type SVs = HashMap String Port
-type DoStepType a = SVs -> UserState a -> DoStepResult a--(Status, SVs)
-data InstState a = InstState {scalarVariables :: SVs, custom :: Maybe (UserState a)}
+
 data Setup a = Setup {variables :: SVs,
                    doStepFunc :: DoStepType a,
                    period :: Double,
                    userState :: UserState a}
 
+
+
+newtype UserState x = UserState x
+
+data DoStepResult x = DoStepResult {dsrStatus :: Status, dsrSvs :: SVs, dsrState :: UserState x }
+
+type DoStepType a = SVs -> UserState a -> DoStepResult a
 
 data FMIComponent x = FMIComponent {vars :: SVs,
                                   doStep :: DoStepType x,
@@ -35,7 +42,3 @@ data FMIComponent x = FMIComponent {vars :: SVs,
                                   period_ :: Double,
                                   remTime :: Double,
                                   userState_ :: UserState x }
-
-data UserState x = UserState x
-
-data DoStepResult x = DoStepResult {dsrStatus :: Status, dsrSvs :: SVs, dsrState :: UserState x }

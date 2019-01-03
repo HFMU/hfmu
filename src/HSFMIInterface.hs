@@ -9,7 +9,6 @@ import Data.IORef
 
 type CompEnvT = Ptr ()
 type FMIStatus = CInt
-type FMIType = CInt
 
 statusToCInt :: Status -> CInt
 statusToCInt =  fromIntegral . fromEnum
@@ -39,4 +38,3 @@ instance Storable CallbackFunctions where
 {-# LINE 33 "HSFMIInterface.hsc" #-}
     `ap`  ((\hsc_ptr -> peekByteOff hsc_ptr 32) p)
 {-# LINE 34 "HSFMIInterface.hsc" #-}
-

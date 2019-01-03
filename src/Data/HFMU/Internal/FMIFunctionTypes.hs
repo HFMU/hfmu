@@ -1,4 +1,4 @@
-module FMIFunctions where
+module Data.HFMU.Internal.FMIFunctionTypes where
 
 import Data.IORef
 import HSFMIInterface
@@ -6,9 +6,6 @@ import Foreign (Ptr, nullPtr, FunPtr, StablePtr)
 import Foreign.C.Types (CInt, CUInt, CBool, CDouble, CSize)
 import Vars
 
-type FMUStateType a = StablePtr (IORef (FMIComponent a))
-
-type FMIFuncReturn = IO (CInt)
 
 type FMISetupExperimentType a = FMUStateType a -> CBool -> CDouble -> CDouble -> CBool -> CDouble -> FMIFuncReturn
 

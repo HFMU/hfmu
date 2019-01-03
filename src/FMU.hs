@@ -18,12 +18,12 @@ setup = H.setup V.Setup {V.variables = HM.union SVs.inputs (HM.union SVs.outputs
                        V.period=0.1,
                        V.userState = V.UserState mFMUState}
 
-data MFMUState = MFMUState {mmax :: Int}
+newtype MFMUState = MFMUState {mmax :: Int}
 
 mFMUState :: MFMUState
 mFMUState = MFMUState {mmax = 1}
 
-doStep :: V.SVs -> V.UserState MFMUState -> V.DoStepResult MFMUState --(Status, V.SVs)
+doStep :: V.DoStepType MFMUState
 doStep svs us@(V.UserState (MFMUState {mmax=m}))  =
   let valve :: Maybe V.SVTypeVal =
         do

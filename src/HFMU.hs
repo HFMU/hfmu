@@ -3,19 +3,20 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 module HFMU where
 
-import qualified HSFMIInterface as FMII
-import qualified FMIFunctions as FF
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign (Ptr, nullPtr, FunPtr, StablePtr)
 import Foreign
 import Data.IORef
 import Control.Monad
-import qualified Vars as V
 import System.IO.Unsafe
 import qualified Data.HashMap.Strict as HM
 import Data.List
 import Debug.Trace
+import qualified Data.HFMU.Types as T
+import qualified Data.HFMU.Internal.FMITypes as FMIT
+import qualified Data.HFMU.Internal.FMIFunctionTypes as FMIFT
+
 
 foreign import ccall "dynamic" mkFunPtrLogger :: FMII.CallbackLogger -> FMII.CompEnvT -> CString -> FMII.FMIStatus -> CString -> CString -> IO ()
 
