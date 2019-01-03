@@ -17,15 +17,15 @@ data SV = SV {svRef :: Int,
 type SVs = HM.HashMap String SV
 
 
-data FMIStatus = OK | Warning | Discard | Error | Fatal | Pending deriving (Enum, Show, Eq)
+data Status = OK | Warning | Discard | Error | Fatal | Pending deriving (Enum, Show, Eq)
 
 newtype UserState x = UserState x
 
-data DoStepResult x = DoStepResult {dsrStatus :: FMIStatus, dsrSvs :: SVs, dsrState :: UserState x }
+data DoStepResult x = DoStepResult {dsrStatus :: Status, dsrSvs :: SVs, dsrState :: UserState x }
 
 type DoStepFunType a = SVs -> UserState a -> DoStepResult a
 
-data Setup a = Setup {sSvs :: SVs,
+data Setup a = Setup {sSVs :: SVs,
                    sDoStepFunc :: DoStepFunType a,
                    sPeriod :: Double,
                    sUserState :: UserState a}

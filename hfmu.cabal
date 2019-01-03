@@ -52,7 +52,7 @@ foreign-library HFMU
      options: standalone
      mod-def-file: HFMU.def
   -- Modules included in this library, other than Main.
-  other-modules: HFMU, FMU, Data.HFMU.Types, Data.HFMU.Internal.FMITypes, Data.HFMU.Internal.FMIFunctionTypes, HMOperations, Vars, StateTypes, SVs
+  other-modules: HFMU, FMU, Data.HFMU.Types, Data.HFMU.Internal.FMITypes, Data.HFMU.Internal.FMIFunctionTypes, HMOperations, SVs
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

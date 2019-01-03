@@ -1,4 +1,5 @@
 module Data.HFMU.Internal.FMITypes where
+
 import qualified Data.HFMU.Types as T
 import Foreign.C.Types (CInt)
 import Foreign.C.String
@@ -7,6 +8,8 @@ import Data.IORef
 import Foreign.Storable
 import Control.Monad (ap)
 
+statusToCInt :: T.Status -> CInt
+statusToCInt = fromIntegral . fromEnum
 
 type FMIStatus = CInt
 type CompEnvT = Ptr ()
@@ -20,13 +23,13 @@ type FMUStateType a = StablePtr (IORef (FMIComponent a))
 
 type FMIFuncReturn = IO CInt
 
-data FMIComponent x = FMIComponent {vars :: T.SVs,
-                                  doStep :: T.DoStepFunType x,
-                                  endTime :: Maybe Double,
-                                  state :: FMUState,
-                                  period_ :: Double,
-                                  remTime :: Double,
-                                  userState_ :: T.UserState x }
+data FMIComponent x = FMIComponent {fcVars :: T.SVs,
+                                  fcDoStep :: T.DoStepFunType x,
+                                  fcEndTime :: Maybe Double,
+                                  fcState :: FMUState,
+                                  fcPeriod :: Double,
+                                  fcRemTime :: Double,
+                                  fcUserState :: T.UserState x }
 
 type CallbackLogger =
   FunPtr(CompEnvT -> CString ->  FMIStatus -> CString -> CString -> IO ())
