@@ -59,8 +59,7 @@ foreign export ccall fmi2SetupExperiment :: FMIFT.FMISetupExperimentType a
 fmi2SetupExperiment :: FMIFT.FMISetupExperimentType a
 fmi2SetupExperiment comp _ _ _ _ stopTime = do
   state' <- getStateImpure comp
-  writeStateImpure comp $ state' {FMIT.fcEndTime = Just $ realToFrac stopTime}
-  (pure . FMIT.statusToCInt) T.OK
+  updStateCalcStatusImpure comp ((state' {FMIT.fcEndTime = Just $ realToFrac stopTime}), T.OK)
 
 foreign export ccall fmi2EnterInitializationMode :: FMIFT.FMIEnterInitializationModeType a
 fmi2EnterInitializationMode :: FMIFT.FMIEnterInitializationModeType a
