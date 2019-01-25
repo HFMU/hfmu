@@ -23,9 +23,14 @@ newtype UserState x = UserState x
 
 data DoStepResult x = DoStepResult {dsrStatus :: Status, dsrSvs :: SVs, dsrState :: UserState x }
 
-type DoStepFunType a = SVs -> UserState a -> DoStepResult a
+type DoStepFunType a = SVs -> UserState a -> IO (DoStepResult a)
 
 data Setup a = Setup {sSVs :: SVs,
                    sDoStepFunc :: DoStepFunType a,
                    sPeriod :: Double,
                    sUserState :: UserState a}
+
+type Period = Double
+type EndTime = Double
+type CommunicationStepSize = Double
+type CurrentCommunicationPoint = Double

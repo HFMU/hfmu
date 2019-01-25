@@ -97,10 +97,13 @@ fmi2SetInteger :: FMIFT.FMISetIntegerType a
 fmi2SetInteger comp varRefs size varVals =
   setLogicImpure comp varRefs size varVals (T.IntegerVal . fromIntegral)
 
+
+
 foreign export ccall fmi2SetReal :: FMIFT.FMISetRealType a
 fmi2SetReal :: FMIFT.FMISetRealType a
 fmi2SetReal comp varRefs size varVals =
   setLogicImpure comp varRefs size varVals (T.RealVal . realToFrac)
+--  retrieveStateAndCallF comp setLogicImpure2 >>= (\x -> x varRefs size varVals (T.RealVal . realToFrac))
 
 setLogicImpure :: Storable b => FMIT.FMUStateType a -> Ptr CUInt -> CSize -> Ptr b -> (b -> T.SVTypeVal) -> IO CInt
 setLogicImpure comp varRefs size varVals varValConvF =
@@ -115,6 +118,29 @@ setLogicImpure comp varRefs size varVals varValConvF =
       in
       updStateCalcStatusImpure comp stateStatus
 
+--setLogicImpure2 :: Storable b => FMIT.FMIComponent a -> Ptr CUInt -> CSize -> Ptr b -> (b -> T.SVTypeVal) -> IO CInt
+--setLogicImpure2 state varRefs size varVals varValConvF =
+--  do
+--    varRefs' :: [CUInt] <- peekArray (fromIntegral size) varRefs
+--    varVals' <- peekArray (fromIntegral size) varVals
+--    let
+--      varVals'' :: [T.SVTypeVal] = map varValConvF varVals'
+--      varRefs'' = map fromIntegral varRefs'
+--      stateStatus = setLogic state varRefs'' varVals''
+--      in
+--      return 5
+      
+-- POssible better function. Retrieves the state from component
+purePreComponentHandler :: FMIT.FMUStateType a -> (FMIT.FMIComponent a -> b) -> IO b
+purePreComponentHandler comp f = do
+  state <- getStateImpure comp
+  return $ f state
+
+-- POssible better function. Retrieves the state from component
+impurePreComponentHandler :: FMIT.FMUStateType a -> (FMIT.FMIComponent a -> IO b) -> IO b
+impurePreComponentHandler comp f = do
+  state <- getStateImpure comp
+  f state
 
 setLogic :: FMIT.FMIComponent a -> [Int] -> [T.SVTypeVal] -> (FMIT.FMIComponent a,T.Status)
 setLogic state@FMIT.FMIComponent {fcVars = vs} vRefs vVals =
@@ -129,6 +155,7 @@ setLogic state@FMIT.FMIComponent {fcVars = vs} vRefs vVals =
         updateValWithValRef :: T.SV -> T.SV
         updateValWithValRef x = if T.svRef x == valRef then x {T.svVal = valVal} else x
 
+    
 
 -- ==============================================================
 -- =================== GET FUNCTIONS ============================
@@ -195,43 +222,36 @@ fmi2DoStep comp ccp css ns =
     state <- getStateImpure comp
     let
       css' = realToFrac css
-      ccp' = realToFrac ccp
-      (state', status) = doStepLogic state ccp' css' (toBool ns)
-      in
-      case status of
-        T.OK -> writeStateImpure comp state' >> (pure . FMIT.statusToCInt) T.OK
-        _ -> (pure . FMIT.statusToCInt) status
+      ccp' = realToFrac ccp in
+      do
+        (state', status) <- doStepLogic state ccp' css' (toBool ns)
+        case status of
+          T.OK -> writeStateImpure comp state' >> (pure . FMIT.statusToCInt) T.OK
+          _ -> (pure . FMIT.statusToCInt) status
 
 
-doStepLogic :: FMIT.FMIComponent a -> Double -> Double -> Bool -> (FMIT.FMIComponent a,T.Status)
+doStepLogic :: FMIT.FMIComponent a -> T.CurrentCommunicationPoint -> T.CommunicationStepSize -> Bool -> IO (FMIT.FMIComponent a,T.Status)
 doStepLogic state ccp css ns =
   case FMIT.fcEndTime state of
-    Nothing -> (state, T.Fatal)
+    Nothing -> return (state, T.Fatal)
     Just endTime ->
       if ccp + css > endTime
-      then (state, T.Fatal)
+      then return (state, T.Fatal)
       else
-        let RDS {remTime = rt, vars = vs, status = st, rdsState = rdsS } = calcDoStep (FMIT.fcDoStep state) (FMIT.fcVars state) (FMIT.fcPeriod state) (FMIT.fcRemTime state) endTime css (FMIT.fcUserState state)
-        in (state {FMIT.fcRemTime = rt, FMIT.fcVars = vs, FMIT.fcUserState = rdsS}, st)
+        do
+          RDS {remTime = rt, vars = vs, status = st, rdsState = rdsS } <- calcDoStep (FMIT.fcDoStep state) (FMIT.fcVars state) (FMIT.fcPeriod state) (FMIT.fcRemTime state) css (FMIT.fcUserState state)
+          return (state {FMIT.fcRemTime = rt, FMIT.fcVars=vs, FMIT.fcUserState=rdsS},st)
 
 data RDS a = RDS {remTime :: Double, vars :: T.SVs, status ::T.Status, rdsState :: T.UserState a}
 
-calcDoStep :: T.DoStepFunType a -> T.SVs -> Double -> Double -> Double -> Double -> T.UserState a -> RDS a
-calcDoStep doStepF svs peri remTime endTime css us =
-  if css < remTime
-  then RDS {remTime = remTime - css, vars = svs, status = T.OK, rdsState = us}
-  else execDoStep
-  where
-    execDoStep =
-      let
-        T.DoStepResult {T.dsrStatus = st, T.dsrSvs = svs', T.dsrState = sta} = doStepF svs us 
-        css' = css - remTime -- ccs' is the remaining communication step size
-      in
-        if st == T.OK
-        then calcDoStep doStepF svs' peri peri endTime css' sta
-        else RDS {remTime = remTime, vars = svs', status = st, rdsState = sta}
-
-
+calcDoStep :: T.DoStepFunType a -> T.SVs -> T.Period -> Double -> T.CommunicationStepSize -> T.UserState a -> IO (RDS a)
+calcDoStep doStepF svs period remTime css us
+  | css < remTime = return RDS {remTime = remTime - css, vars = svs, status = T.OK, rdsState = us}
+  | otherwise = do
+      T.DoStepResult {T.dsrStatus = st, T.dsrSvs = svs', T.dsrState = sta} <- doStepF svs us
+      case st of
+        T.OK -> calcDoStep doStepF svs' period period (css-remTime) sta
+        _ -> return RDS {remTime = remTime, vars=svs', status=st, rdsState=sta}
 
 -- ==============================================================
 -- =================== SETUP FUNCTIONs ==========================

@@ -32,10 +32,10 @@ doStep svs us@(T.UserState (MFMUState {mmax=m}))  =
           calcValve level mM $ getPortVal svs "valve"
   in
     case valve of
-      Just v -> T.DoStepResult {T.dsrStatus = T.OK,
+      Just v -> return T.DoStepResult {T.dsrStatus = T.OK,
                                T.dsrSvs = adjustPortVal svs "valve" v,
                                T.dsrState = T.UserState (MFMUState {mmax = 2})}
-      Nothing -> T.DoStepResult {T.dsrStatus = T.Fatal,
+      Nothing -> return T.DoStepResult {T.dsrStatus = T.Fatal,
                                 T.dsrSvs = svs,
                                 T.dsrState = us}
 
