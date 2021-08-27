@@ -11,6 +11,7 @@ static void loaded(void)
   static char *argv[] = { "libHFMU.so", 0 }, **argv_ = argv;
   static int argc = 1;
   hs_init(&argc, &argv_);
+  setup();
 
   //setup();
 }
