@@ -30,7 +30,8 @@ data FMIComponent x = FMIComponent {fcVars :: T.SVs,
                                   fcState :: FMUState,
                                   fcPeriod :: Double,
                                   fcRemTime :: Double,
-                                  fcUserState :: T.UserState x }
+                                  fcUserState :: T.UserState x,
+                                  fcLoggingFunction :: LoggingFunctionType}
 
 type CallbackLogger =
   FunPtr(CompEnvT -> CString ->  FMIStatus -> CString -> CString -> IO ())

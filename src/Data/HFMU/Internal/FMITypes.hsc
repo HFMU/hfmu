@@ -1,13 +1,41 @@
 module Data.HFMU.Internal.FMITypes where
 
 import qualified Data.HFMU.Types as T
-import Foreign.C.Types (CInt)
+import Foreign.C.Types
 import Foreign.C.String
-import Foreign (StablePtr, FunPtr, Ptr, nullPtr)
+import Foreign (StablePtr, FunPtr, Ptr, nullPtr, Int32)
 import Data.IORef
 import Foreign.Storable
 import Control.Monad (ap)
 
+data LogCategory2 = Ok | Warning | Error | Fatal
+
+showLogCategory :: LogCategory2 -> String
+showLogCategory Ok = "OK"
+showLogCategory Warning = "Warning"
+showLogCategory Error = "Error"
+showLogCategory Fatal = "Fatal"
+
+logCategoryToInt :: LogCategory2 -> Int32
+logCategoryToInt Ok = 0
+logCategoryToInt Warning = 1
+logCategoryToInt Error = 3 -- Skipping fmi2Discard
+logCategoryToInt Fatal = 4
+
+type LoggingFunctionType = LogCategory2 -> String -> IO ()
+
+foreign import ccall "dynamic" mkFunPtrLogger :: CallbackLogger -> CompEnvT -> CString -> FMIStatus -> CString -> CString -> IO ()
+
+-- | The 'createLoggingFunction' creates a logging function that accepts a LogCategory2 and a message and sends it to the C callback.
+createLoggingFunction :: CallbackFunctions -> String -> LoggingFunctionType
+createLoggingFunction cbFuncs instanceName logCat msg =
+  let loggerFunction = logger cbFuncs
+      loggerFunctionPtr = mkFunPtrLogger loggerFunction
+   in do
+        instanceName_ <- newCString instanceName
+        logCategory <- newCString (showLogCategory logCat)
+        msg_ <- newCString msg
+        loggerFunctionPtr nullPtr instanceName_ (CInt (logCategoryToInt logCat)) logCategory msg_
 statusToCInt :: T.Status -> CInt
 statusToCInt = fromIntegral . fromEnum
 
@@ -29,7 +57,8 @@ data FMIComponent x = FMIComponent {fcVars :: T.SVs,
                                   fcState :: FMUState,
                                   fcPeriod :: Double,
                                   fcRemTime :: Double,
-                                  fcUserState :: T.UserState x }
+                                  fcUserState :: T.UserState x,
+                                  fcLoggingFunction :: LoggingFunctionType}
 
 type CallbackLogger =
   FunPtr(CompEnvT -> CString ->  FMIStatus -> CString -> CString -> IO ())

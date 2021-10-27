@@ -13,7 +13,7 @@ static void loaded(void)
   hs_init(&argc, &argv_);
   setup();
 
-  //setup();
+  setup();
 }
 
 static void unloaded(void) __attribute__((destructor));
